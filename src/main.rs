@@ -3,6 +3,7 @@ use failure::Fallible;
 use headless_chrome::browser::Tab;
 use headless_chrome::protocol::dom::Node;
 use headless_chrome::Browser;
+use std::env;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -161,8 +162,12 @@ fn parse_percentage_str(mut price_change: String) -> Result<f64, ParseFloatError
 fn initialize_tab(browser: &Browser) -> Fallible<Arc<Tab>> {
     let tab = browser.wait_for_initial_tab()?;
 
-    // navigate to the afterhours info webpage on CNN
-    tab.navigate_to("https://money.cnn.com/data/afterhours/")?;
+    // navigate to the after hours info webpage
+    let after_market_url = match env::var("AFTER_MARKET_URL") {
+        Ok(url) => url,
+        Err(error) => panic!("AFTER_MARKET_URL error: {:?}", error),
+    };
+    tab.navigate_to(&after_market_url)?;
 
     Ok(tab)
 }
