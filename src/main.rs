@@ -1,10 +1,16 @@
 use core::num::ParseFloatError;
+use failure::Fallible;
+use headless_chrome::browser::Tab;
 use headless_chrome::protocol::dom::Node;
 use headless_chrome::Browser;
+use std::sync::Arc;
 use std::time::Instant;
 
+extern crate env_logger;
+extern crate log;
+
 /// AfterMarketPriceData holds all the data necessary to track the performance
-/// of a after-market-traded stock over time
+/// of an after-market-traded stock over time
 #[derive(Debug)]
 pub struct AfterMarketPriceData {
     symbol: String,
@@ -12,48 +18,28 @@ pub struct AfterMarketPriceData {
     date: Instant,
 }
 
-/// Given a Node, search through its HTML looking for another Node with a tag
-/// whose type is equal to `s`
-fn get_node_with_name<'a>(node: &'a Node, s: &str) -> &'a Node {
-    node.find(|n| n.node_name == s)
-        .unwrap_or_else(|| panic!("couldn't find {:?} tag with node: {:?}", s, node))
-}
-
-/// Same as `get_node_with_class_as_option` but unwraps the Option and panics
-/// if it is `None`
-fn get_node_with_class<'a>(node: &'a Node, s: &str) -> &'a Node {
-    match get_node_with_class_as_option(node, s) {
-        Some(n) => n,
-        _ => panic!("couldn't find {:?}: {:?}", s, node),
-    }
-}
-
-/// Given a Node, search through its HTML looking for another Node with a tag
-/// whose class is equal to 's'
-fn get_node_with_class_as_option<'a>(node: &'a Node, s: &str) -> Option<&'a Node> {
-    node.find(|n| {
-        let attrs = n.attributes.clone(); // TODO learn why compiler won't let me because
-                                          // n.attributes so I don't have to use the slower `.clone`
-        attrs.unwrap_or_default().get("class") == Some(&s.to_string())
-    })
-}
-
-/// Strip away the % char so "+7.06%": String becomes 7.06: f64
-fn parse_percentage_str(mut price_change: String) -> Result<f64, ParseFloatError> {
-    price_change.remove(price_change.len() - 1);
-    price_change.parse::<f64>()
+fn main() {
+    env_logger::init();
+    println!("{:?}", scrape_cnn_after_market_datasource().unwrap());
 }
 
 pub fn scrape_cnn_after_market_datasource() -> Result<Vec<AfterMarketPriceData>, failure::Error> {
-    let mut after_market_data = Vec::new();
-
     let browser = Browser::default()?;
+    let tab = initialize_tab(&browser)?;
 
-    let tab = browser.wait_for_initial_tab()?;
+    // we'll use this to gather all of the ticker data we care about
+    let after_market_data = Vec::new();
 
-    // navigate to the afterhours info webpage on CNN
-    tab.navigate_to("https://money.cnn.com/data/afterhours/")?;
+    let after_market_data = get_after_market_ticker_data(after_market_data, &tab)?;
+    let after_market_data = get_standard_and_poors_ticker_data(after_market_data, &tab)?;
 
+    Ok(after_market_data)
+}
+
+fn get_after_market_ticker_data(
+    mut v: Vec<AfterMarketPriceData>,
+    tab: &Arc<Tab>,
+) -> Result<Vec<AfterMarketPriceData>, failure::Error> {
     // locate the HTML table with the afterhours trading Gainers and Losers
     let price_changes_table = tab.wait_for_element("div#wsod_marketMoversContainer")?;
 
@@ -100,9 +86,17 @@ pub fn scrape_cnn_after_market_datasource() -> Result<Vec<AfterMarketPriceData>,
             percentage: price_perc_change,
             date: now,
         };
-        after_market_data.push(price_data);
+
+        v.push(price_data);
     }
 
+    Ok(v)
+}
+
+fn get_standard_and_poors_ticker_data(
+    mut v: Vec<AfterMarketPriceData>,
+    tab: &Arc<Tab>,
+) -> Result<Vec<AfterMarketPriceData>, failure::Error> {
     // we also want the S&P price change, because our strategy takes the movement
     // of the S&P 500 into account (if it's largely positive, then we believe the
     // market will have greater liklihood to buy the trending aftermarket trades)
@@ -127,11 +121,48 @@ pub fn scrape_cnn_after_market_datasource() -> Result<Vec<AfterMarketPriceData>,
         percentage: sp_perc_change,
         date: now,
     };
-    after_market_data.push(price_data);
+    v.push(price_data);
 
-    Ok(after_market_data)
+    Ok(v)
 }
 
-fn main() {
-    println!("{:?}", scrape_cnn_after_market_datasource().unwrap());
+/// Given a Node, search through its HTML looking for another Node with a tag
+/// whose type is equal to `s`
+fn get_node_with_name<'a>(node: &'a Node, s: &str) -> &'a Node {
+    node.find(|n| n.node_name == s)
+        .unwrap_or_else(|| panic!("couldn't find {:?} tag with node: {:?}", s, node))
+}
+
+/// Same as `get_node_with_class_as_option` but unwraps the Option and panics
+/// if it is `None`
+fn get_node_with_class<'a>(node: &'a Node, s: &str) -> &'a Node {
+    match get_node_with_class_as_option(node, s) {
+        Some(n) => n,
+        _ => panic!("couldn't find {:?}: {:?}", s, node),
+    }
+}
+
+/// Given a Node, search through its HTML looking for another Node with a tag
+/// whose class is equal to 's'
+fn get_node_with_class_as_option<'a>(node: &'a Node, s: &str) -> Option<&'a Node> {
+    node.find(|n| {
+        let attrs = n.attributes.clone(); // TODO learn why compiler won't let me because
+                                          // n.attributes so I don't have to use the slower `.clone`
+        attrs.unwrap_or_default().get("class") == Some(&s.to_string())
+    })
+}
+
+/// Strip away the % char so "+7.06%": String becomes 7.06: f64
+fn parse_percentage_str(mut price_change: String) -> Result<f64, ParseFloatError> {
+    price_change.remove(price_change.len() - 1);
+    price_change.parse::<f64>()
+}
+
+fn initialize_tab(browser: &Browser) -> Fallible<Arc<Tab>> {
+    let tab = browser.wait_for_initial_tab()?;
+
+    // navigate to the afterhours info webpage on CNN
+    tab.navigate_to("https://money.cnn.com/data/afterhours/")?;
+
+    Ok(tab)
 }
