@@ -79,16 +79,15 @@ fn get_after_market_ticker_data(
             .node_value
             .to_string();
 
-        // first, make sure this is a positive price change. We do not want
-        // to scrape tickers with negative price changes (cuz we don't think those will make money!)
-        let neg_price_column = get_node_with_class_as_option(row, "negChangePct");
-        if neg_price_column.is_some() {
-            break; // ignore this row
-        }
+        // the data source marks the price change data value with a different
+        // HTML class depending on if it's negative or positive so we check for both
+        let third_column = match get_node_with_class_as_option(row, "negChangePct") {
+            Some(pct) => pct,
+            None => get_node_with_class_as_option(row, "posChangePct")
+                .unwrap_or_else(|| panic!("couldn't find third_column with row: {:?}", row)),
+        };
 
-        let third_column = get_node_with_class(row, "posChangePct");
-
-        // this gives us a String of the form "+7.06%"
+        // this gives us a String of the form "+7.06%" or "-3.99%"
         let price_perc_change = get_node_with_name(third_column, "#text")
             .node_value
             .to_string();
