@@ -1,1 +1,1 @@
-scrape: ./target/debug/after_market_trading_scraper
+scrape: ./target/release/after_market_trading_scraper
