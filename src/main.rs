@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use core::num::ParseFloatError;
 use failure::Fallible;
 use headless_chrome::browser::Tab;
@@ -5,10 +6,15 @@ use headless_chrome::protocol::dom::Node;
 use headless_chrome::Browser;
 use std::env;
 use std::sync::Arc;
-use std::time::Instant;
 
+use postgres::{Connection, TlsMode};
+
+extern crate chrono;
 extern crate env_logger;
 extern crate log;
+
+#[macro_use]
+extern crate lazy_static;
 
 /// AfterMarketPriceData holds all the data necessary to track the performance
 /// of an after-market-traded stock over time
@@ -16,7 +22,14 @@ extern crate log;
 pub struct AfterMarketPriceData {
     symbol: String,
     percentage: f64,
-    date: Instant,
+    date: DateTime<Utc>,
+}
+
+const TABLE_NAME: &str = "after_market";
+const DB_NAME: &str = "blah";
+
+lazy_static! {
+    static ref NOW: Option<DateTime<Utc>> = Some(Utc::now());
 }
 
 fn main() {
@@ -33,6 +46,8 @@ pub fn scrape_cnn_after_market_datasource() -> Result<Vec<AfterMarketPriceData>,
 
     let after_market_data = get_after_market_ticker_data(after_market_data, &tab)?;
     let after_market_data = get_standard_and_poors_ticker_data(after_market_data, &tab)?;
+
+    insert_after_market_data_into_db(&after_market_data);
 
     Ok(after_market_data)
 }
@@ -80,12 +95,11 @@ fn get_after_market_ticker_data(
             .to_string();
 
         let price_perc_change = parse_percentage_str(price_perc_change)?;
-        let now = Instant::now();
 
         let price_data = AfterMarketPriceData {
             symbol: ticker_symbol,
             percentage: price_perc_change,
-            date: now,
+            date: NOW.unwrap(),
         };
 
         v.push(price_data);
@@ -116,11 +130,10 @@ fn get_standard_and_poors_ticker_data(
 
     let sp_perc_change = parse_percentage_str(sp_perc_change)?;
 
-    let now = Instant::now();
     let price_data = AfterMarketPriceData {
         symbol: "S&P".to_string(),
         percentage: sp_perc_change,
-        date: now,
+        date: NOW.unwrap(),
     };
     v.push(price_data);
 
@@ -170,4 +183,20 @@ fn initialize_tab(browser: &Browser) -> Fallible<Arc<Tab>> {
     tab.navigate_to(&after_market_url)?;
 
     Ok(tab)
+}
+
+fn insert_after_market_data_into_db(after_market_data: &Vec<AfterMarketPriceData>) {
+    let conn = Connection::connect(
+        format!("postgres://melvillian:password@localhost:5432/{}", DB_NAME),
+        TlsMode::None,
+    )
+    .unwrap();
+
+    for d in after_market_data.iter() {
+        conn.execute(
+            &format!("INSERT INTO {} (symbol, percentage, date) VALUES ($1, $2, $3)", TABLE_NAME),
+            &[&d.symbol, &d.percentage, &d.date],
+        )
+        .unwrap();
+    }
 }
