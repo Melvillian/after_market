@@ -17,7 +17,7 @@ extern crate log;
 extern crate lazy_static;
 
 /// AfterMarketPriceData holds all the data necessary to track the performance
-/// of an after-market-traded stock over time
+/// of an after-market-traded stock over time 
 #[derive(Debug)]
 pub struct AfterMarketPriceData {
     symbol: String,
