@@ -1,1 +1,1 @@
-web: target/debug/after_market_trading_scraper
+web: ./target/debug/after_market_trading_scraper
