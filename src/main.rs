@@ -26,7 +26,6 @@ pub struct AfterMarketPriceData {
 }
 
 const TABLE_NAME: &str = "after_market";
-const DB_NAME: &str = "blah";
 
 lazy_static! {
     static ref NOW: Option<DateTime<Utc>> = Some(Utc::now());
@@ -187,14 +186,17 @@ fn initialize_tab(browser: &Browser) -> Fallible<Arc<Tab>> {
 
 fn insert_after_market_data_into_db(after_market_data: &Vec<AfterMarketPriceData>) {
     let conn = Connection::connect(
-        format!("postgres://melvillian:password@localhost:5432/{}", DB_NAME),
+        "postgres://melvillian:password@localhost:5432/blah",
         TlsMode::None,
     )
     .unwrap();
 
     for d in after_market_data.iter() {
         conn.execute(
-            &format!("INSERT INTO {} (symbol, percentage, date) VALUES ($1, $2, $3)", TABLE_NAME),
+            &format!(
+                "INSERT INTO {} (symbol, percentage, date) VALUES ($1, $2, $3)",
+                TABLE_NAME
+            ),
             &[&d.symbol, &d.percentage, &d.date],
         )
         .unwrap();
