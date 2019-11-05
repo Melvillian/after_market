@@ -185,7 +185,7 @@ fn initialize_tab(browser: &Browser) -> Fallible<Arc<Tab>> {
 
 fn insert_after_market_data_into_db(after_market_data: &Vec<AfterMarketPriceData>) {
     let conn = Connection::connect(
-        "postgres://melvillian:password@localhost:5432/blah",
+        env::var("DATABASE_URL").expect("no env var DATABASE_URL"),
         TlsMode::None,
     )
     .unwrap();
