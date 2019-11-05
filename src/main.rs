@@ -7,6 +7,7 @@ use headless_chrome::Browser;
 use std::env;
 use std::sync::Arc;
 
+use postgres::tls::openssl::OpenSsl;
 use postgres::{Connection, TlsMode};
 
 extern crate chrono;
@@ -17,7 +18,7 @@ extern crate log;
 extern crate lazy_static;
 
 /// AfterMarketPriceData holds all the data necessary to track the performance
-/// of an after-market-traded stock over time 
+/// of an after-market-traded stock over time
 #[derive(Debug)]
 pub struct AfterMarketPriceData {
     symbol: String,
@@ -184,9 +185,11 @@ fn initialize_tab(browser: &Browser) -> Fallible<Arc<Tab>> {
 }
 
 fn insert_after_market_data_into_db(after_market_data: &Vec<AfterMarketPriceData>) {
+    let negotiator = OpenSsl::new().unwrap();
+
     let conn = Connection::connect(
         env::var("DATABASE_URL").expect("no env var DATABASE_URL"),
-        TlsMode::None,
+        TlsMode::Prefer(&negotiator),
     )
     .unwrap();
 
