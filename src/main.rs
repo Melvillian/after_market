@@ -7,12 +7,8 @@ use headless_chrome::Browser;
 use std::env;
 use std::sync::Arc;
 
-use postgres::tls::openssl::OpenSsl;
 use postgres::{Connection, TlsMode};
-
-extern crate chrono;
-extern crate env_logger;
-extern crate log;
+use postgres_openssl::OpenSsl;
 
 #[macro_use]
 extern crate lazy_static;
@@ -189,7 +185,7 @@ fn insert_after_market_data_into_db(after_market_data: &Vec<AfterMarketPriceData
 
     let conn = Connection::connect(
         env::var("DATABASE_URL").expect("no env var DATABASE_URL"),
-        TlsMode::Prefer(&negotiator),
+        TlsMode::Require(&negotiator),
     )
     .unwrap();
 

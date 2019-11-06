@@ -11,6 +11,7 @@ headless_chrome = "0.9.0"
 failure = "0.1.6"
 log = "0.4.0"
 env_logger = "0.7.1"
-postgres = { version = "0.15", features = ["with-chrono", "with-openssl"] }
+postgres = { version = "0.15", features = ["with-chrono"] }
+postgres-openssl = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
 lazy_static = "1.4.0"
