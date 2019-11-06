@@ -1,5 +1,5 @@
 [package]
-name = "after_market_trading_scraper"
+name = "strat"
 version = "0.1.0"
 authors = ["Melvillian <melvillevt@gmail.com>"]
 edition = "2018"
