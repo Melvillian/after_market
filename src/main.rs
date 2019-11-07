@@ -7,6 +7,7 @@ use headless_chrome::Browser;
 use std::env;
 use std::sync::Arc;
 
+use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
 use postgres::{Connection, TlsMode};
 use postgres_openssl::OpenSsl;
 
@@ -181,11 +182,14 @@ fn initialize_tab(browser: &Browser) -> Fallible<Arc<Tab>> {
 }
 
 fn insert_after_market_data_into_db(after_market_data: &Vec<AfterMarketPriceData>) {
-    let negotiator = OpenSsl::new().unwrap();
-
+    // Create Ssl postgres connector without verification as required to connect to Heroku.
+    let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
+    builder.set_verify(SslVerifyMode::NONE);
+    let mut connect = OpenSsl::from(builder.build());
+    connect.danger_disable_hostname_verification(true);
     let conn = Connection::connect(
         env::var("DATABASE_URL").expect("no env var DATABASE_URL"),
-        TlsMode::Require(&negotiator),
+        TlsMode::Require(&connect),
     )
     .unwrap();
 
